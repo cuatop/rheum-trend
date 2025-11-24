@@ -65,67 +65,65 @@ def get_data(term, days, journal_list):
                     if clean: keywords.append(clean)
             time.sleep(0.1)
         except: continue
-    return Counter(keywords).most_common(70), journal_query, date_query_str
+    # 단어 개수를 80개로 늘려서 더 풍성하게
+    return Counter(keywords).most_common(80), journal_query, date_query_str
 
 # === 메인 실행 ===
 word_data, j_query, d_query = get_data(SEARCH_TERM, DAYS_BACK, TOP_JOURNALS)
 
 if word_data:
-    # D3.js가 이해할 수 있는 데이터 형식으로 변환
     d3_data = []
     max_count = word_data[0][1] if word_data else 1
     for word, count in word_data:
-        # 링크 생성
         raw_query = f"({j_query}) AND {word} AND {d_query}"
         safe_query = urllib.parse.quote(raw_query)
         link = f"https://pubmed.ncbi.nlm.nih.gov/?term={safe_query}"
-        # 글자 크기 정규화 (15~60px 사이)
-        size = 15 + (count / max_count) * 45
+        # 글자 크기 조절 (최소 20px ~ 최대 90px) -> 더 크고 임팩트 있게
+        size = 20 + (count / max_count) * 70
         d3_data.append({"text": word, "size": size, "url": link, "count": count})
 
-    # [핵심] D3.js를 이용한 HTML 생성
+    # [핵심] 디자인이 대폭 수정된 HTML
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Rheumatology Trends Cloud</title>
         <script src="https://d3js.org/d3.v5.min.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/LIB/d3.layout.cloud.js"></script>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #ffffff; text-align: center; overflow: hidden; }}
-            #cloud-area {{ width: 100%; height: 700px; margin: 0 auto; }}
-            .word-link {{ cursor: pointer; transition: opacity 0.2s; }}
-            .word-link:hover {{ opacity: 0.7 !important; }}
-            h2 {{ color: #333; margin: 20px 0 10px; }}
-            .footer {{ font-size: 12px; color: #999; margin-bottom: 20px; }}
+            body {{ font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; text-align: center; }}
+            #container {{ max-width: 1000px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); padding: 20px; }}
+            h2 {{ color: #2c3e50; margin: 10px 0; font-weight: 700; }}
+            .footer {{ font-size: 13px; color: #7f8c8d; margin-bottom: 30px; }}
+            .word-link {{ cursor: pointer; transition: all 0.3s ease; }}
+            .word-link:hover {{ opacity: 0.8 !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }}
         </style>
     </head>
     <body>
-        <h2>☁️ Rheumatology Live Trends</h2>
-        <p class="footer">Top 30 Journals • Last 30 Days • Updated: {datetime.date.today().strftime('%Y-%m-%d')}</p>
-        <div id="cloud-area"></div>
+        <div id="container">
+            <h2>☁️ Rheumatology Live Trends</h2>
+            <p class="footer">Top 30 Journals • Last 30 Days • Updated: {datetime.date.today().strftime('%Y-%m-%d')}</p>
+            <div id="cloud-area"></div>
+        </div>
 
         <script>
-            // 파이썬에서 만든 데이터를 자바스크립트로 가져옴
             var words = {json.dumps(d3_data)};
-
-            // 색상 팔레트
+            // 더 진하고 전문적인 색상 팔레트
             var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064", "#16a085"]);
 
-            // 워드클라우드 레이아웃 설정
             var layout = d3.layout.cloud()
-                .size([window.innerWidth * 0.95, 700]) // 영역 크기
+                .size([document.getElementById('container').offsetWidth * 0.95, 600])
                 .words(words.map(function(d) {{ return {{text: d.text, size: d.size, url: d.url, count: d.count}}; }}))
-                .padding(5)        // 단어 간격
-                .rotate(function() {{ return (~~(Math.random() * 2) * 90) - (~~(Math.random() * 2) * 45); }}) // 랜덤 회전 (0, 90, -45도 등)
-                .font("Impact")    // 폰트
+                .padding(2)        // [핵심] 간격을 좁혀서 빽빽하게
+                .rotate(function() {{ return (~~(Math.random() * 2) * 90); }}) // [핵심] 0도 또는 90도로 회전
+                .font("Impact")    // [핵심] 굵고 강한 폰트 사용
                 .fontSize(function(d) {{ return d.size; }})
                 .on("end", draw);
 
             layout.start();
 
-            // 그리기 함수
             function draw(words) {{
               d3.select("#cloud-area").append("svg")
                   .attr("width", layout.size()[0])
@@ -137,26 +135,21 @@ if word_data:
                 .enter().append("text")
                   .attr("class", "word-link")
                   .style("font-size", function(d) {{ return d.size + "px"; }})
-                  .style("font-family", "Impact, sans-serif")
+                  .style("font-family", "Impact, Arial Black, sans-serif") // 폰트 적용
                   .style("fill", function(d, i) {{ return myColor(i); }})
                   .attr("text-anchor", "middle")
                   .attr("transform", function(d) {{
                     return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
                   }})
                   .text(function(d) {{ return d.text; }})
-                  .on("click", function(d) {{ window.open(d.url, '_blank'); }}) // 클릭 시 새 창 열기
-                  .append("title") // 마우스 올리면 건수 표시
+                  .on("click", function(d) {{ window.open(d.url, '_blank'); }})
+                  .append("title")
                   .text(function(d) {{ return d.text + " (" + d.count + " papers)"; }});
             }}
         </script>
     </body>
     </html>
     """
-    
-    with open("index.html", "w", encoding="utf-8") as f:
-        f.write(html_content)
-
+    with open("index.html", "w", encoding="utf-8") as f: f.write(html_content)
 else:
-    # 데이터가 없을 때 표시할 기본 화면
-    with open("index.html", "w", encoding="utf-8") as f:
-        f.write("<html><body><h2>No data found for the last 30 days.</h2></body></html>")
+    with open("index.html", "w", encoding="utf-8") as f: f.write("<h2>No data found.</h2>")
