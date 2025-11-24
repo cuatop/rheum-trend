@@ -1,0 +1,38 @@
+name: Daily Rheumatology Update
+
+# 언제 실행할지 정합니다
+on:
+  schedule:
+    # 한국 시간 아침 8시 (UTC 23:00)에 실행
+    - cron: '0 23 * * *'
+  # 수동으로도 실행 버튼을 누를 수 있게 함
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v3
+
+      - name: 파이썬 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 필요한 도구(Requests) 설치
+        run: pip install requests
+
+      - name: 로봇 실행 (main.py)
+        run: python main.py
+
+      - name: 결과물(index.html) 저장하고 올리기
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Update Daily Trend" || echo "No changes to commit"
+          git push
