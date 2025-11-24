@@ -32,6 +32,7 @@ def normalize_word(word):
     return word
 
 def get_data(term, days, journal_list):
+    print(f"-> 검색 시작: {term}")
     journal_query = " OR ".join([f'"{j}"[Journal]' for j in journal_list])
     today = datetime.date.today()
     past_date = today - datetime.timedelta(days=days)
@@ -40,14 +41,22 @@ def get_data(term, days, journal_list):
     
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     params = {"db": "pubmed", "term": full_query, "retmode": "json", "retmax": MAX_PAPERS, "sort": "date"}
-    resp = requests.get(search_url, params=params)
-    if 'esearchresult' not in resp.json(): return [], "", ""
-    id_list = resp.json()['esearchresult']['idlist']
+    
+    try:
+        resp = requests.get(search_url, params=params)
+        data = resp.json()
+        if 'esearchresult' not in data: return [], "", ""
+        id_list = data['esearchresult']['idlist']
+    except Exception as e:
+        print(f"검색 에러: {e}")
+        return [], "", ""
+        
     if not id_list: return [], "", ""
 
     keywords = []
     batch_size = 100
     fetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    
     for i in range(0, len(id_list), batch_size):
         batch_ids = id_list[i : i + batch_size]
         params = {"db": "pubmed", "id": ",".join(batch_ids), "retmode": "xml"}
@@ -63,10 +72,109 @@ def get_data(term, days, journal_list):
                     if clean: keywords.append(clean)
             time.sleep(0.1)
         except: continue
+        
     return Counter(keywords).most_common(80), journal_query, date_query_str
 
-word_data, j_query, d_query = get_data(SEARCH_TERM, DAYS_BACK, TOP_JOURNALS)
+# === 메인 실행 ===
+try:
+    word_data, j_query, d_query = get_data(SEARCH_TERM, DAYS_BACK, TOP_JOURNALS)
+except Exception as e:
+    print(f"데이터 처리 중 오류: {e}")
+    word_data = []
 
+# === HTML 템플릿 (안전한 문자열 방식) ===
+# 이 안에는 파이썬 변수가 없어서 에러가 절대 안 납니다.
+html_template = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rheumatology Trends Cloud</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/LIB/d3.layout.cloud.js"></script>
+    <style>
+        body { 
+            margin: 0; padding: 0; 
+            background-color: #ffffff; 
+            text-align: center; 
+            overflow: hidden; 
+        }
+        #container { 
+            width: 100%; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        h2 { color: #2c3e50; margin: 10px 0; font-family: 'Segoe UI', sans-serif; font-size: 24px; font-weight: 800; }
+        .footer { font-size: 12px; color: #95a5a6; font-family: sans-serif; margin-bottom: 10px; }
+        .word-link { cursor: pointer; transition: all 0.2s ease; }
+        .word-link:hover { opacity: 0.7 !important; }
+        /* 반응형 SVG 설정 */
+        svg { 
+            width: 95%; 
+            height: auto; 
+            max-width: 900px; 
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h2>☁️ Rheumatology Live Trends</h2>
+        <p class="footer">Top 30 Journals • Last 30 Days • Updated: __DATE_PLACEHOLDER__</p>
+        <div id="cloud-area"></div>
+    </div>
+
+    <script>
+        var words = __DATA_PLACEHOLDER__;
+        var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064"]);
+
+        // 캔버스 기본 크기
+        var width = 800;
+        var height = 550;
+
+        var layout = d3.layout.cloud()
+            .size([width, height])
+            .words(words.map(function(d) { return {text: d.text, size: d.size, url: d.url, count: d.count}; }))
+            .padding(3) 
+            .rotate(function() { return (~~(Math.random() * 6) - 3) * 30; })
+            .font("Impact")
+            .fontSize(function(d) { return d.size; })
+            .on("end", draw);
+
+        layout.start();
+
+        function draw(words) {
+          d3.select("#cloud-area").append("svg")
+              .attr("viewBox", "0 0 " + width + " " + height)
+              .attr("preserveAspectRatio", "xMidYMid meet")
+            .append("g")
+              .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")")
+            .selectAll("text")
+              .data(words)
+            .enter().append("text")
+              .attr("class", "word-link")
+              .style("font-size", function(d) { return d.size + "px"; })
+              .style("font-family", "Impact, sans-serif")
+              .style("fill", function(d, i) { return myColor(i); })
+              .attr("text-anchor", "middle")
+              .attr("transform", function(d) {
+                return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
+              })
+              .text(function(d) { return d.text; })
+              .on("click", function(d) { window.open(d.url, '_blank'); })
+              .append("title")
+              .text(function(d) { return d.text + " (" + d.count + " papers)"; });
+        }
+    </script>
+</body>
+</html>
+"""
+
+# === 데이터 주입 및 파일 저장 ===
 if word_data:
     d3_data = []
     max_count = word_data[0][1] if word_data else 1
@@ -74,50 +182,22 @@ if word_data:
         raw_query = f"({j_query}) AND {word} AND {d_query}"
         safe_query = urllib.parse.quote(raw_query)
         link = f"https://pubmed.ncbi.nlm.nih.gov/?term={safe_query}"
-        size = 10 + (count / max_count) * 90 
+        
+        # 격차 확대 (10~90)
+        size = 10 + (count / max_count) * 90
         d3_data.append({"text": word, "size": size, "url": link, "count": count})
 
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Rheumatology Trends Cloud</title>
-        <script src="https://d3js.org/d3.v5.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/LIB/d3.layout.cloud.js"></script>
-        <style>
-            body {{ 
-                margin: 0; padding: 0; 
-                background-color: #ffffff; 
-                text-align: center; 
-            }}
-            #container {{ 
-                width: 100%; 
-                margin: 0 auto; 
-                padding: 10px 0;
-            }}
-            h2 {{ color: #2c3e50; margin: 10px 0; font-family: 'Segoe UI', sans-serif; font-size: 24px; }}
-            .footer {{ font-size: 12px; color: #95a5a6; font-family: sans-serif; margin-bottom: 5px; }}
-            .word-link {{ cursor: pointer; transition: all 0.2s ease; }}
-            .word-link:hover {{ opacity: 0.7 !important; }}
-            
-            /* [핵심 수정] 무조건 꽉 차게 만들기 */
-            svg {{ 
-                width: 95%; /* 화면의 95%를 차지해라 */
-                height: auto; /* 높이는 알아서 맞춰라 */
-                max-width: 900px; /* 너무 커지지는 마라 */
-                display: block;
-                margin: 0 auto;
-            }}
-        </style>
-    </head>
-    <body>
-        <div id="container">
-            <h2>☁️ Rheumatology Live Trends</h2>
-            <p class="footer">Top 30 Journals • Last 30 Days • Updated: {datetime.date.today().strftime('%Y-%m-%d')}</p>
-            <div id="cloud-area"></div>
-        </div>
-
-        <script>
-            var words = {json.dumps(d3_data)};
+    # 파이썬 데이터를 문자열로 변환하여 HTML 템플릿에 주입
+    json_str = json.dumps(d3_data)
+    today_str = datetime.date.today().strftime('%Y-%m-%d')
+    
+    final_html = html_template.replace("__DATA_PLACEHOLDER__", json_str)
+    final_html = final_html.replace("__DATE_PLACEHOLDER__", today_str)
+    
+    with open("index.html", "w", encoding="utf-8") as f:
+        f.write(final_html)
+    print("성공: index.html 생성 완료")
+else:
+    print("데이터 없음")
+    with open("index.html", "w", encoding="utf-8") as f:
+        f.write("<h2>No Data Found</h2>")
