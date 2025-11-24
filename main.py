@@ -74,7 +74,7 @@ if word_data:
         raw_query = f"({j_query}) AND {word} AND {d_query}"
         safe_query = urllib.parse.quote(raw_query)
         link = f"https://pubmed.ncbi.nlm.nih.gov/?term={safe_query}"
-        size = 10 + (count / max_count) * 80 
+        size = 10 + (count / max_count) * 90 
         d3_data.append({"text": word, "size": size, "url": link, "count": count})
 
     html_content = f"""
@@ -91,22 +91,25 @@ if word_data:
                 margin: 0; padding: 0; 
                 background-color: #ffffff; 
                 text-align: center; 
-                overflow: hidden; /* 스크롤바 제거 */
             }}
             #container {{ 
                 width: 100%; 
-                height: 100vh; /* 화면 높이에 맞춤 */
-                display: flex; 
-                flex-direction: column; 
-                justify-content: center; 
-                align-items: center; 
+                margin: 0 auto; 
+                padding: 10px 0;
             }}
             h2 {{ color: #2c3e50; margin: 10px 0; font-family: 'Segoe UI', sans-serif; font-size: 24px; }}
-            .footer {{ font-size: 12px; color: #95a5a6; font-family: sans-serif; margin-bottom: 10px; }}
+            .footer {{ font-size: 12px; color: #95a5a6; font-family: sans-serif; margin-bottom: 5px; }}
             .word-link {{ cursor: pointer; transition: all 0.2s ease; }}
             .word-link:hover {{ opacity: 0.7 !important; }}
-            /* 반응형 SVG 설정 */
-            svg {{ width: 100%; height: auto; max-width: 800px; }}
+            
+            /* [핵심 수정] 무조건 꽉 차게 만들기 */
+            svg {{ 
+                width: 95%; /* 화면의 95%를 차지해라 */
+                height: auto; /* 높이는 알아서 맞춰라 */
+                max-width: 900px; /* 너무 커지지는 마라 */
+                display: block;
+                margin: 0 auto;
+            }}
         </style>
     </head>
     <body>
@@ -118,50 +121,3 @@ if word_data:
 
         <script>
             var words = {json.dumps(d3_data)};
-            var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064"]);
-
-            // [핵심] 캔버스 크기를 고정하되, 화면에 맞춰 줄어들게 설정
-            var width = 800;
-            var height = 500;
-
-            var layout = d3.layout.cloud()
-                .size([width, height])
-                .words(words.map(function(d) {{ return {{text: d.text, size: d.size, url: d.url, count: d.count}}; }}))
-                .padding(4) 
-                .rotate(function() {{ return (~~(Math.random() * 6) - 3) * 30; }})
-                .font("Impact")
-                .fontSize(function(d) {{ return d.size; }})
-                .on("end", draw);
-
-            layout.start();
-
-            function draw(words) {{
-              d3.select("#cloud-area").append("svg")
-                  .attr("preserveAspectRatio", "xMidYMid meet") // 비율 유지하면서 축소
-                  .attr("viewBox", "0 0 " + width + " " + height) // [핵심] 마법의 코드
-                  .classed("svg-content-responsive", true)
-                .append("g")
-                  .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")")
-                .selectAll("text")
-                  .data(words)
-                .enter().append("text")
-                  .attr("class", "word-link")
-                  .style("font-size", function(d) {{ return d.size + "px"; }})
-                  .style("font-family", "Impact, sans-serif")
-                  .style("fill", function(d, i) {{ return myColor(i); }})
-                  .attr("text-anchor", "middle")
-                  .attr("transform", function(d) {{
-                    return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
-                  }})
-                  .text(function(d) {{ return d.text; }})
-                  .on("click", function(d) {{ window.open(d.url, '_blank'); }})
-                  .append("title")
-                  .text(function(d) {{ return d.text + " (" + d.count + " papers)"; }});
-            }}
-        </script>
-    </body>
-    </html>
-    """
-    with open("index.html", "w", encoding="utf-8") as f: f.write(html_content)
-else:
-    with open("index.html", "w", encoding="utf-8") as f: f.write("<h2>No data found.</h2>")
