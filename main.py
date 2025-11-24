@@ -82,8 +82,7 @@ except Exception as e:
     print(f"데이터 처리 중 오류: {e}")
     word_data = []
 
-# === HTML 템플릿 (안전한 문자열 방식) ===
-# 이 안에는 파이썬 변수가 없어서 에러가 절대 안 납니다.
+# === HTML 템플릿 (봉인 해제 버전) ===
 html_template = """
 <!DOCTYPE html>
 <html>
@@ -99,26 +98,22 @@ html_template = """
             background-color: #ffffff; 
             text-align: center; 
             overflow: hidden; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh;
         }
         #container { 
             width: 100%; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
+            height: 100%;
+            display: flex; flex-direction: column; align-items: center; 
         }
-        h2 { color: #2c3e50; margin: 10px 0; font-family: 'Segoe UI', sans-serif; font-size: 24px; font-weight: 800; }
-        .footer { font-size: 12px; color: #95a5a6; font-family: sans-serif; margin-bottom: 10px; }
+        h2 { color: #2c3e50; margin: 20px 0 5px 0; font-family: 'Segoe UI', sans-serif; font-size: 2.5em; font-weight: 800; }
+        .footer { font-size: 1em; color: #95a5a6; font-family: sans-serif; margin-bottom: 10px; }
         .word-link { cursor: pointer; transition: all 0.2s ease; }
         .word-link:hover { opacity: 0.7 !important; }
-        /* 반응형 SVG 설정 */
-        svg { 
-            width: 95%; 
-            height: auto; 
-            max-width: 900px; 
-            display: block;
-        }
+        
+        /* [핵심 수정] 제한을 풀고 화면에 꽉 차게 설정 */
+        #cloud-area { width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
+        svg { width: 100%; height: 100%; display: block; }
     </style>
 </head>
 <body>
@@ -132,14 +127,14 @@ html_template = """
         var words = __DATA_PLACEHOLDER__;
         var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064"]);
 
-        // 캔버스 기본 크기
-        var width = 800;
-        var height = 550;
+        // 캔버스 크기를 조금 더 키워서 해상도를 높임
+        var layoutWidth = 1000;
+        var layoutHeight = 600;
 
         var layout = d3.layout.cloud()
-            .size([width, height])
+            .size([layoutWidth, layoutHeight])
             .words(words.map(function(d) { return {text: d.text, size: d.size, url: d.url, count: d.count}; }))
-            .padding(3) 
+            .padding(4) 
             .rotate(function() { return (~~(Math.random() * 6) - 3) * 30; })
             .font("Impact")
             .fontSize(function(d) { return d.size; })
@@ -149,10 +144,11 @@ html_template = """
 
         function draw(words) {
           d3.select("#cloud-area").append("svg")
-              .attr("viewBox", "0 0 " + width + " " + height)
+              // viewBox를 사용하여 브라우저 크기에 맞춰 늘어나게 함
+              .attr("viewBox", "0 0 " + layoutWidth + " " + layoutHeight)
               .attr("preserveAspectRatio", "xMidYMid meet")
             .append("g")
-              .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")")
+              .attr("transform", "translate(" + layoutWidth / 2 + "," + layoutHeight / 2 + ")")
             .selectAll("text")
               .data(words)
             .enter().append("text")
@@ -174,7 +170,6 @@ html_template = """
 </html>
 """
 
-# === 데이터 주입 및 파일 저장 ===
 if word_data:
     d3_data = []
     max_count = word_data[0][1] if word_data else 1
@@ -183,16 +178,13 @@ if word_data:
         safe_query = urllib.parse.quote(raw_query)
         link = f"https://pubmed.ncbi.nlm.nih.gov/?term={safe_query}"
         
-        # 격차 확대 (10~90)
-        size = 10 + (count / max_count) * 90
+        # 글자 크기를 더 키움 (최대 100px)
+        size = 15 + (count / max_count) * 100
         d3_data.append({"text": word, "size": size, "url": link, "count": count})
 
-    # 파이썬 데이터를 문자열로 변환하여 HTML 템플릿에 주입
     json_str = json.dumps(d3_data)
     today_str = datetime.date.today().strftime('%Y-%m-%d')
-    
-    final_html = html_template.replace("__DATA_PLACEHOLDER__", json_str)
-    final_html = final_html.replace("__DATE_PLACEHOLDER__", today_str)
+    final_html = html_template.replace("__DATA_PLACEHOLDER__", json_str).replace("__DATE_PLACEHOLDER__", today_str)
     
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(final_html)
