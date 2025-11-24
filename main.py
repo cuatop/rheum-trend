@@ -10,7 +10,6 @@ import json
 SEARCH_TERM = "Rheumatology"
 DAYS_BACK = 30
 MAX_PAPERS = 1000
-# Top 30 저널 공식 약어
 TOP_JOURNALS = [
     "Nat Rev Rheumatol", "Ann Rheum Dis", "Lancet Rheumatol", "Arthritis Rheumatol",
     "N Engl J Med", "Lancet", "JAMA", "BMJ",
@@ -23,7 +22,6 @@ TOP_JOURNALS = [
     "Front Immunol", "J Rheum Dis"
 ]
 
-# === 데이터 처리 함수들 (기존과 동일) ===
 def normalize_word(word):
     if not word: return ""
     garbage = ["Treatment Outcome", "Humans", "Female", "Male", "Adult", "Middle Aged", "Aged", "Adolescent", "Young Adult", "Child", "Animals", "Mice", "Rats", "Pregnancy", "Risk Factors", "Retrospective Studies", "Prospective Studies", "Case-Control Studies", "Incidence", "Prevalence", "Surveys and Questionnaires", "Sensitivity and Specificity", "Predictive Value of Tests", "Questionnaires", "Cohort Studies", "Severity of Illness Index"]
@@ -65,10 +63,8 @@ def get_data(term, days, journal_list):
                     if clean: keywords.append(clean)
             time.sleep(0.1)
         except: continue
-    # 단어 개수를 80개로 늘려서 더 풍성하게
     return Counter(keywords).most_common(80), journal_query, date_query_str
 
-# === 메인 실행 ===
 word_data, j_query, d_query = get_data(SEARCH_TERM, DAYS_BACK, TOP_JOURNALS)
 
 if word_data:
@@ -78,11 +74,9 @@ if word_data:
         raw_query = f"({j_query}) AND {word} AND {d_query}"
         safe_query = urllib.parse.quote(raw_query)
         link = f"https://pubmed.ncbi.nlm.nih.gov/?term={safe_query}"
-        # 글자 크기 조절 (최소 20px ~ 최대 90px) -> 더 크고 임팩트 있게
-        size = 20 + (count / max_count) * 70
+        size = 15 + (count / max_count) * 60 # 글자 크기 조정
         d3_data.append({"text": word, "size": size, "url": link, "count": count})
 
-    # [핵심] 디자인이 대폭 수정된 HTML
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -94,11 +88,11 @@ if word_data:
         <script src="https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/LIB/d3.layout.cloud.js"></script>
         <style>
             body {{ font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; text-align: center; }}
-            #container {{ max-width: 1000px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); padding: 20px; }}
-            h2 {{ color: #2c3e50; margin: 10px 0; font-weight: 700; }}
-            .footer {{ font-size: 13px; color: #7f8c8d; margin-bottom: 30px; }}
-            .word-link {{ cursor: pointer; transition: all 0.3s ease; }}
-            .word-link:hover {{ opacity: 0.8 !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }}
+            #container {{ max-width: 900px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 30px; }}
+            h2 {{ color: #2c3e50; margin: 10px 0; font-weight: 800; letter-spacing: -1px; }}
+            .footer {{ font-size: 13px; color: #95a5a6; margin-bottom: 20px; }}
+            .word-link {{ cursor: pointer; transition: all 0.2s ease; }}
+            .word-link:hover {{ opacity: 0.8 !important; }}
         </style>
     </head>
     <body>
@@ -110,15 +104,14 @@ if word_data:
 
         <script>
             var words = {json.dumps(d3_data)};
-            // 더 진하고 전문적인 색상 팔레트
-            var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064", "#16a085"]);
+            var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064"]);
 
             var layout = d3.layout.cloud()
-                .size([document.getElementById('container').offsetWidth * 0.95, 600])
+                .size([800, 500]) // [핵심] 가로 800, 세로 500으로 제한 -> 동그랗게 뭉침!
                 .words(words.map(function(d) {{ return {{text: d.text, size: d.size, url: d.url, count: d.count}}; }}))
-                .padding(2)        // [핵심] 간격을 좁혀서 빽빽하게
-                .rotate(function() {{ return (~~(Math.random() * 2) * 90); }}) // [핵심] 0도 또는 90도로 회전
-                .font("Impact")    // [핵심] 굵고 강한 폰트 사용
+                .padding(3)
+                .rotate(function() {{ return (~~(Math.random() * 6) - 3) * 30; }}) // [핵심] 회전 각도를 좀 더 다양하게 (-90 ~ 90)
+                .font("Impact")
                 .fontSize(function(d) {{ return d.size; }})
                 .on("end", draw);
 
@@ -135,7 +128,7 @@ if word_data:
                 .enter().append("text")
                   .attr("class", "word-link")
                   .style("font-size", function(d) {{ return d.size + "px"; }})
-                  .style("font-family", "Impact, Arial Black, sans-serif") // 폰트 적용
+                  .style("font-family", "Impact, sans-serif")
                   .style("fill", function(d, i) {{ return myColor(i); }})
                   .attr("text-anchor", "middle")
                   .attr("transform", function(d) {{
