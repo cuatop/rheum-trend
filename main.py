@@ -87,19 +87,26 @@ if word_data:
         <script src="https://d3js.org/d3.v5.min.js"></script>
         <script src="https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/LIB/d3.layout.cloud.js"></script>
         <style>
-            /* [핵심 수정] 스크롤바 없애기 & 여백 최소화 */
             body {{ 
-                font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
                 margin: 0; padding: 0; 
                 background-color: #ffffff; 
                 text-align: center; 
-                overflow: hidden; /* 스크롤바 강제 제거 */
+                overflow: hidden; /* 스크롤바 제거 */
             }}
-            #container {{ width: 100%; height: 100%; margin: 0 auto; padding: 10px; box-sizing: border-box; }}
-            h2 {{ color: #2c3e50; margin: 5px 0 0 0; font-weight: 800; font-size: 24px; }}
-            .footer {{ font-size: 12px; color: #95a5a6; margin-bottom: 5px; }}
+            #container {{ 
+                width: 100%; 
+                height: 100vh; /* 화면 높이에 맞춤 */
+                display: flex; 
+                flex-direction: column; 
+                justify-content: center; 
+                align-items: center; 
+            }}
+            h2 {{ color: #2c3e50; margin: 10px 0; font-family: 'Segoe UI', sans-serif; font-size: 24px; }}
+            .footer {{ font-size: 12px; color: #95a5a6; font-family: sans-serif; margin-bottom: 10px; }}
             .word-link {{ cursor: pointer; transition: all 0.2s ease; }}
-            .word-link:hover {{ opacity: 0.8 !important; }}
+            .word-link:hover {{ opacity: 0.7 !important; }}
+            /* 반응형 SVG 설정 */
+            svg {{ width: 100%; height: auto; max-width: 800px; }}
         </style>
     </head>
     <body>
@@ -113,10 +120,14 @@ if word_data:
             var words = {json.dumps(d3_data)};
             var myColor = d3.scaleOrdinal().range(["#2c3e50", "#c0392b", "#2980b9", "#8e44ad", "#27ae60", "#d35400", "#006064"]);
 
+            // [핵심] 캔버스 크기를 고정하되, 화면에 맞춰 줄어들게 설정
+            var width = 800;
+            var height = 500;
+
             var layout = d3.layout.cloud()
-                .size([700, 550]) // [핵심 수정] 가로폭을 900 -> 700으로 줄임 (블로그에 딱 맞게)
+                .size([width, height])
                 .words(words.map(function(d) {{ return {{text: d.text, size: d.size, url: d.url, count: d.count}}; }}))
-                .padding(3) 
+                .padding(4) 
                 .rotate(function() {{ return (~~(Math.random() * 6) - 3) * 30; }})
                 .font("Impact")
                 .fontSize(function(d) {{ return d.size; }})
@@ -126,10 +137,11 @@ if word_data:
 
             function draw(words) {{
               d3.select("#cloud-area").append("svg")
-                  .attr("width", layout.size()[0])
-                  .attr("height", layout.size()[1])
+                  .attr("preserveAspectRatio", "xMidYMid meet") // 비율 유지하면서 축소
+                  .attr("viewBox", "0 0 " + width + " " + height) // [핵심] 마법의 코드
+                  .classed("svg-content-responsive", true)
                 .append("g")
-                  .attr("transform", "translate(" + layout.size()[0] / 2 + "," + layout.size()[1] / 2 + ")")
+                  .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")")
                 .selectAll("text")
                   .data(words)
                 .enter().append("text")
